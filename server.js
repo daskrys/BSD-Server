@@ -18,28 +18,46 @@ const io = new Server(server, {
 });
 
 let next_player_num = 1;
-const players = [];
+const players = {};
+const player_nums = {};
 
-io.on("connection", (socket) => {
+io.on("connect", (socket) => {
   
   const player_number = next_player_num;
-  players[socket.id] = player_number;
+  player_nums[socket.id] = next_player_num;
+  next_player_num++;
   
-  // assign new player of their number
-  socket.emit('player_number', player_number);
+  players[socket.id] = {
+      player_id: socket.id,
+      x: 500,
+      y: 500,
+      animation: 'walk_t',
+  };
   
+  socket.emit('current_players', players); // send players info
+  
+  socket.emit('player_number', player_number); // send player number
+  
+  socket.broadcast.emit('new_player', players[socket.id]);
   console.log("new user connected");
   
-  // update all clients
-  io.emit('users_connected', Object.keys(players).length);
+  io.emit('users_connected', Object.keys(players).length); // update all clients
   
+  socket.on('player_movement', (movement_data) => {
+        players[socket.id].x = movement_data.x;
+        players[socket.id].y = movement_data.y;
+        players[socket.id].animation = movement_data.animation;
+        // Broadcast updated position to all other players
+        socket.broadcast.emit('player_moved', players[socket.id]);
+    });
 
   socket.on("disconnect", () => {
-    console.log("user disconnected")
+    console.log("user disconnected");
     
+    delete player_nums[socket.id];
     delete players[socket.id];
     
-    // update all clients
+    io.emit('disconnected', socket.id);
     io.emit('users_connected', Object.keys(players).length);
   });
   
